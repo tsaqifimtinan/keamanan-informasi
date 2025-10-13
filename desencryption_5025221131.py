@@ -56,8 +56,9 @@ def simple_xor_with_key(data, key):
     result = [data[i] ^ key_bits[i] for i in range(64)]
     return result
 
-def simple_encrypt(plaintext, key):
-    plaintext_bits = string_to_bits(plaintext)
+def simple_encrypt_block(plaintext_8chars, key):
+    """Encrypt exactly 8 characters (64 bits)"""
+    plaintext_bits = string_to_bits(plaintext_8chars)
     
     if len(plaintext_bits) < 64:
         plaintext_bits.extend([0] * (64 - len(plaintext_bits)))
@@ -65,19 +66,44 @@ def simple_encrypt(plaintext, key):
         plaintext_bits = plaintext_bits[:64]
     
     after_ip = permute(plaintext_bits, IP)
-    
     after_xor = simple_xor_with_key(after_ip, key)
-    
     final_block = permute(after_xor, FP)
     return final_block
 
-def simple_decrypt(ciphertext, key):
-    after_ip = permute(ciphertext, IP)
-    
+def simple_decrypt_block(ciphertext_64bits, key):
+    """Decrypt exactly 64 bits to 8 characters"""
+    after_ip = permute(ciphertext_64bits, IP)
     after_xor = simple_xor_with_key(after_ip, key)
-    
     final_block = permute(after_xor, FP)
     return final_block
+
+def simple_encrypt(plaintext, key):
+    """Encrypt plaintext of any length by processing 8-character blocks"""
+    # Pad text to make it multiple of 8 characters
+    padded_text = pad_text(plaintext)
+    
+    all_encrypted_bits = []
+    
+    # Process each 8-character block
+    for i in range(0, len(padded_text), 8):
+        block = padded_text[i:i+8]
+        encrypted_block = simple_encrypt_block(block, key)
+        all_encrypted_bits.extend(encrypted_block)
+    
+    return all_encrypted_bits
+
+def simple_decrypt(ciphertext_bits, key):
+    """Decrypt ciphertext bits of any length by processing 64-bit blocks"""
+    all_decrypted_bits = []
+    
+    # Process each 64-bit block
+    for i in range(0, len(ciphertext_bits), 64):
+        block = ciphertext_bits[i:i+64]
+        if len(block) == 64:  # Only process complete blocks
+            decrypted_block = simple_decrypt_block(block, key)
+            all_decrypted_bits.extend(decrypted_block)
+    
+    return all_decrypted_bits
 
 def interactive_mode():    
     while True:
@@ -88,13 +114,8 @@ def interactive_mode():
         choice = input("Choose (1-2): ").strip()
         
         if choice == '1':
-            while True:
-                text = input("Enter text to encrypt (must be exactly 8 characters): ")
-                if len(text) == 8:
-                    break
-                else:
-                    print(f"The message should be exactly 8 characters.")
-                    print("Please try again.")
+            # Get text input from user (any length now supported)
+            text = input("Enter text to encrypt: ")
             
             key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
             
@@ -102,7 +123,7 @@ def interactive_mode():
             print(f"Auto-generated Key: {key}")
             
             print("\nEncrypting...")
-            encrypted_bits = simple_encrypt(text[:8], key)
+            encrypted_bits = simple_encrypt(text, key)
             
             hex_result = ""
             for i in range(0, len(encrypted_bits), 4):
